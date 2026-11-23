@@ -835,7 +835,7 @@ body {
           </div>
           <button class="btn primary" id="applyUpdateBtn" onclick="applyUpdate()">Обновить сейчас</button>
         </div>
-        <div id="updateChangelog" style="font-size:12px; color:var(--text-main); margin-top:10px; white-space:pre-wrap; border-top:1px solid var(--border); padding-top:8px;"></div>
+        <div id="updateChangelog" style="font-size:12px; color:var(--text-main); margin-top:10px; border-top:1px solid var(--border); padding-top:10px; line-height:1.5;"></div>
       </div>
     </div>
   </div>
@@ -1306,6 +1306,17 @@ async function saveManual() {
 
 let pendingUpdateUrl = "";
 
+function renderMarkdown(md) {
+  if (!md) return '';
+  return md
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/^###\s*(.*)$/gm, '<div style="font-weight:700; color:var(--gold); margin-bottom:6px;">$1</div>')
+    .replace(/^##\s*(.*)$/gm, '<div style="font-weight:700; font-size:13px; color:var(--gold); margin-bottom:6px;">$1</div>')
+    .replace(/\*\*(.*?)\*\*/g, '<b style="color:var(--text-main);">$1</b>')
+    .replace(/^-\s+(.*)$/gm, '<div style="margin-left:4px; margin-bottom:4px; display:flex; gap:6px;"><span style="color:var(--gold);">•</span><span>$1</span></div>')
+    .replace(/\n\n+/g, '<div style="height:6px;"></div>');
+}
+
 function renderUpdateNotice(u) {
   const box = document.getElementById('updateNoticeBox');
   if (!box) return;
@@ -1320,7 +1331,7 @@ function renderUpdateNotice(u) {
   document.getElementById('updateNoticeMeta').innerText = mb ? `Размер: ${mb}` : '';
   const changelogElem = document.getElementById('updateChangelog');
   if (u.changelog) {
-    changelogElem.innerText = u.changelog;
+    changelogElem.innerHTML = renderMarkdown(u.changelog);
     changelogElem.style.display = 'block';
   } else {
     changelogElem.style.display = 'none';
