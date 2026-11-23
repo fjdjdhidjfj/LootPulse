@@ -8,7 +8,7 @@ namespace LootPulse;
 public static class AppInfo
 {
     public const string Name = "LootPulse";
-    public const string Version = "2.0.0";
+    public const string Version = "2.0.1";
     public const string Tagline = "Fortnite Chest & Squad Tracker";
 
     public static string DefaultDataDirectory
