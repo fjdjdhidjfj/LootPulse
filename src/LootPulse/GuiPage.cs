@@ -1337,18 +1337,25 @@ async function checkUpdates(manual = false) {
   try {
     const res = await api('checkUpdate');
     if (btn) btn.disabled = false;
-    if (res && res.hasUpdate) {
-      if (statusElem) statusElem.innerText = `Найдено обновление v${res.latestVersion}`;
+    const hasUp = res && (res.hasUpdate || res.HasUpdate);
+    const latestVer = res && (res.latestVersion || res.LatestVersion);
+    const dUrl = res && (res.downloadUrl || res.DownloadUrl);
+    const sBytes = res && (res.fileSizeBytes !== undefined ? res.fileSizeBytes : res.FileSizeBytes);
+    const cl = res && (res.changelog || res.Changelog);
+    const errMsg = res && (res.errorMessage || res.ErrorMessage || res.error || res.Error);
+
+    if (hasUp) {
+      if (statusElem) statusElem.innerText = `Найдено обновление v${latestVer}`;
       renderUpdateNotice({
-        version: res.latestVersion,
-        downloadUrl: res.downloadUrl,
-        sizeBytes: res.fileSizeBytes,
-        changelog: res.changelog
+        version: latestVer,
+        downloadUrl: dUrl,
+        sizeBytes: sBytes,
+        changelog: cl
       });
-      showToast(`Доступна новая версия v${res.latestVersion}`);
-    } else if (res && res.error) {
-      if (statusElem) statusElem.innerText = `Ошибка: ${res.error}`;
-      if (manual) showToast(`Ошибка проверки: ${res.error}`);
+      showToast(`Доступна новая версия v${latestVer}`);
+    } else if (errMsg) {
+      if (statusElem) statusElem.innerText = `Ошибка: ${errMsg}`;
+      if (manual) showToast(`Ошибка проверки: ${errMsg}`);
     } else {
       if (statusElem) statusElem.innerText = 'У вас установлена последняя версия';
       if (manual) showToast('У вас последняя версия');

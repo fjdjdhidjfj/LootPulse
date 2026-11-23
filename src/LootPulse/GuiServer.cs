@@ -152,7 +152,7 @@ public sealed class GuiServer
                 {
                     var updateResult = await Updater.CheckAsync(_config.UpdateRepo, AppInfo.Version);
                     if (updateResult.HasUpdate) _latestUpdate = updateResult;
-                    var resJson = JsonSerializer.Serialize(updateResult);
+                    var resJson = JsonSerializer.Serialize(updateResult, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
                     SendResponse(res, "application/json", Encoding.UTF8.GetBytes(resJson));
                     return;
                 }
@@ -214,10 +214,12 @@ public sealed class GuiServer
 
             case "toggleOverlay":
                 NativeOverlay.ToggleVisibility();
+                _storage.SaveConfig(_config);
                 break;
 
             case "toggleLock":
                 NativeOverlay.ToggleLock();
+                _storage.SaveConfig(_config);
                 break;
 
             case "setOverlayOpacity":

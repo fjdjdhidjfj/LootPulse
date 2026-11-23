@@ -57,10 +57,7 @@ public static class Program
         ThreadPool.RegisterWaitForSingleObject(_showEvent, (_, _) => GuiWindow.RestoreWindow(), null, -1, false);
 
         // Start overlay and match engine
-        if (config.OverlayEnabled)
-        {
-            NativeOverlay.Start(config, engine, partyHub);
-        }
+        NativeOverlay.Start(config, engine, partyHub);
         engine.OnStateChanged += () => NativeOverlay.NotifyUpdate();
         partyHub.OnRosterChanged += () => NativeOverlay.NotifyUpdate();
 

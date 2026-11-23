@@ -367,21 +367,22 @@ public sealed class PartyHub
                 {
                     _tcp = new TcpClient();
                     await _tcp.ConnectAsync(host, port, ct).ConfigureAwait(false);
-                    _stream = _tcp.GetStream();
+                    var s = _tcp.GetStream();
 
                     var clientId = "lp_" + Guid.NewGuid().ToString("N")[..8];
                     var connPacket = BuildConnectPacket(clientId);
-                    await _stream.WriteAsync(connPacket, ct).ConfigureAwait(false);
+                    await s.WriteAsync(connPacket, ct).ConfigureAwait(false);
 
                     var ack = new byte[4];
-                    int read = await _stream.ReadAsync(ack.AsMemory(0, 4), ct).ConfigureAwait(false);
+                    int read = await s.ReadAsync(ack.AsMemory(0, 4), ct).ConfigureAwait(false);
                     if (read < 4 || ack[0] != 0x20 || ack[3] != 0x00)
                     {
                         throw new IOException("MQTT CONNACK failed");
                     }
 
                     var subPacket = BuildSubscribePacket(_topic, 1);
-                    await _stream.WriteAsync(subPacket, ct).ConfigureAwait(false);
+                    await s.WriteAsync(subPacket, ct).ConfigureAwait(false);
+                    _stream = s;
 
                     _ = Task.Run(async () =>
                     {
