@@ -492,7 +492,7 @@ body {
   <div class="brand">
     <svg viewBox="0 0 24 24"><path d="M4 6h16a2 2 0 0 1 2 2v3H2V8a2 2 0 0 1 2-2zm-2 7h20v5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-5zm9-1v3h2v-3h-2z"/></svg>
     <span>LootPulse</span>
-    <span class="badge" id="titlebarVersion">v2.0.0</span>
+    <span class="badge" id="titlebarVersion">v2.1.0</span>
   </div>
 
   <div class="titlebar-right">
@@ -569,6 +569,7 @@ body {
         </div>
         <div class="sub-stats">
           <span>Время в матче: <b id="matchTimer" class="highlight">00:00</b></span>
+          <span>Темп: <b id="currentMatchCpm" class="highlight">0.0/мин</b></span>
         </div>
       </div>
     </div>
@@ -626,13 +627,14 @@ body {
         <thead>
           <tr>
             <th>Дата</th>
+            <th>Локация</th>
             <th>Время</th>
             <th>Сундуков добыто</th>
             <th>Счёт Пати</th>
           </tr>
         </thead>
         <tbody id="historyTableBody">
-          <tr><td colspan="4" style="text-align:center; color:var(--text-muted);">Матчей пока нет</td></tr>
+          <tr><td colspan="5" style="text-align:center; color:var(--text-muted);">Матчей пока нет</td></tr>
         </tbody>
       </table>
     </div>
@@ -695,7 +697,8 @@ body {
         <table class="table">
           <thead>
             <tr>
-              <th>Время начала</th>
+              <th>Время</th>
+              <th>Локация</th>
               <th>Длительность</th>
               <th>Сундуков добыто</th>
               <th>В минуту (CPM)</th>
@@ -705,6 +708,20 @@ body {
             <!-- Rendered dynamically -->
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Overall Top Locations Card -->
+    <div class="card" id="topLocationsCard" style="margin-top:16px;">
+      <div class="card-title">
+        <span>Популярные локации (Drop Spots)</span>
+        <span style="color:var(--text-muted); font-size:12px;">по всем матчам</span>
+      </div>
+      <p style="color:var(--text-muted); font-size:13px; margin-bottom:12px;">
+        Локации, где вы приземляетесь и открываете больше всего сундуков.
+      </p>
+      <div id="topLocationsList" style="display:flex; flex-direction:column; gap:8px;">
+        <!-- Rendered dynamically -->
       </div>
     </div>
   </div>
@@ -801,7 +818,7 @@ body {
     <div class="card" style="margin-top:16px;">
       <div class="card-title">
         <span>Обновление программы</span>
-        <span class="badge" id="currentVersionBadge">v2.0.0</span>
+        <span class="badge" id="currentVersionBadge">v2.1.0</span>
       </div>
       <p style="color:var(--text-muted); font-size:13px;">
         Проверка и автоматическая установка обновлений программы напрямую из релизов GitHub.
@@ -904,6 +921,9 @@ async function pollState() {
     const res = await fetch(`/state?token=${TOKEN}`);
     if (res.ok) {
       state = await res.json();
+      if (state.notification) {
+        showToast(state.notification);
+      }
       render();
     }
   } catch(e) {}
@@ -923,6 +943,19 @@ function render() {
 
   document.getElementById('currentMatchChests').innerText = state.currentMatchChests || 0;
   document.getElementById('matchTimer').innerText = fmtTime(state.matchSeconds);
+
+  const cpmElem = document.getElementById('currentMatchCpm');
+  if (cpmElem) {
+    const cpm = state.currentMatchCpm || 0;
+    cpmElem.innerText = `${cpm.toFixed(1)}/мин`;
+    if (cpm >= 1.5) {
+      cpmElem.style.color = 'var(--green)';
+    } else if (cpm >= 0.8) {
+      cpmElem.style.color = 'var(--gold)';
+    } else {
+      cpmElem.style.color = 'var(--text-muted)';
+    }
+  }
 
   // Squad Grid
   const squadGrid = document.getElementById('squadGrid');
@@ -1088,13 +1121,14 @@ function filterHistory() {
   }
 
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">Матчи не найдены</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:16px;">Матчи не найдены</td></tr>';
     return;
   }
 
   tbody.innerHTML = list.slice(0, 50).map(m => `
     <tr>
       <td>${m.date}</td>
+      <td><span style="background:#181d28; color:var(--gold); border:1px solid rgba(229,169,60,0.3); border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600;">${m.mainLocation || 'Окрестности'}</span></td>
       <td>${fmtTime(m.duration)}</td>
       <td><b style="color:var(--gold);">${m.chests}</b></td>
       <td><b>${m.squadChests}</b></td>
@@ -1171,6 +1205,30 @@ function renderWeeklyStats() {
     }).join('');
   }
 
+  // Render Top Locations (Drop Spots)
+  const topListElem = document.getElementById('topLocationsList');
+  if (topListElem && state.topLocations) {
+    if (state.topLocations.length === 0) {
+      topListElem.innerHTML = '<span style="color:var(--text-muted); font-size:13px;">Данные по локациям появятся после завершения матчей.</span>';
+    } else {
+      const maxLocChests = Math.max(1, ...state.topLocations.map(l => l.chests));
+      topListElem.innerHTML = state.topLocations.slice(0, 7).map(l => {
+        const pct = Math.max(4, Math.round((l.chests / maxLocChests) * 100));
+        return `
+          <div style="background:#10131a; border:1px solid var(--border); border-radius:6px; padding:8px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px;">
+              <span style="font-weight:600; color:var(--text-main);">${l.name}</span>
+              <span><b style="color:var(--gold);">${l.chests}</b> <span style="color:var(--text-muted); font-size:11px;">(${l.matches} каток)</span></span>
+            </div>
+            <div style="background:#181d28; border-radius:3px; height:4px; margin-top:6px; overflow:hidden;">
+              <div style="background:var(--gold); width:${pct}%; height:100%; border-radius:3px;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
   renderSelectedDayStats();
 }
 
@@ -1220,7 +1278,7 @@ function renderSelectedDayStats() {
   const tbody = document.getElementById('dayMatchesTableBody');
   if (tbody) {
     if (!d.matches || d.matches.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">В этот день каток не было</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:16px;">В этот день каток не было</td></tr>';
     } else {
       tbody.innerHTML = d.matches.slice().reverse().map(m => {
         const cpm = m.duration > 0 ? (m.chests / (m.duration / 60)).toFixed(1) : '0';
@@ -1228,6 +1286,7 @@ function renderSelectedDayStats() {
         return `
           <tr>
             <td>${timeStr}</td>
+            <td><span style="background:#181d28; color:var(--gold); border:1px solid rgba(229,169,60,0.3); border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600;">${m.mainLocation || 'Окрестности'}</span></td>
             <td>${fmtTime(m.duration)}</td>
             <td><b style="color:var(--gold);">${m.chests}</b></td>
             <td>${cpm}</td>

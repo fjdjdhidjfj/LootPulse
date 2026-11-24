@@ -556,4 +556,76 @@ public class ChestAnalyzerTests
         Assert.Contains("id=\"onlyInGameCheckbox\"", html);
         Assert.Contains("toggleOnlyInGame", html);
     }
+
+    [Fact]
+    public void PoiResolver_ResolvesKnownLocationsCorrectly()
+    {
+        // Salty Springs near (-25700, -25200)
+        Assert.Equal("Salty Springs", PoiResolver.Resolve(-25000, -25000));
+        // The Agency near (0, -3500)
+        Assert.Equal("The Agency", PoiResolver.Resolve(100, -3600));
+        // Retail Row near (63900, 27600)
+        Assert.Equal("Retail Row", PoiResolver.Resolve(64000, 27000));
+        // Far off into the ocean or outskirts
+        Assert.Equal("Окрестности", PoiResolver.Resolve(500000, -500000));
+    }
+
+    [Fact]
+    public void MatchSummary_LocationsAndMainLocation_CalculatesCorrectly()
+    {
+        var match = new MatchSummary();
+        Assert.Equal("Окрестности", match.MainLocation);
+
+        match.Locations["Retail Row"] = 5;
+        match.Locations["Salty Springs"] = 9;
+        match.Locations["Pleasant Park"] = 2;
+
+        Assert.Equal("Salty Springs", match.MainLocation);
+        Assert.Equal(3, match.Locations.Count);
+        Assert.Equal(9, match.Locations["Salty Springs"]);
+    }
+
+    [Fact]
+    public void GuiPage_ContainsLocationAndPaceElements()
+    {
+        var html = GuiPage.Render("token_loc_check");
+
+        // POI elements
+        Assert.Contains("Популярные локации (Drop Spots)", html);
+        Assert.Contains("id=\"topLocationsCard\"", html);
+        Assert.Contains("id=\"topLocationsList\"", html);
+        Assert.Contains("Локация", html);
+
+        // CPM / Pace elements
+        Assert.Contains("id=\"currentMatchCpm\"", html);
+        Assert.Contains("Темп:", html);
+    }
+
+    [Fact]
+    public void PartyHub_EnqueuesNotification_OnTeammateJoined()
+    {
+        var config = new Config { RoomCode = "notif_room", Profile = "Me" };
+        var hub = new PartyHub(config);
+
+        string? notifiedTeammate = null;
+        hub.OnTeammateJoined = name => notifiedTeammate = name;
+
+        var mate = new PartyPacket
+        {
+            ClientId = "peer_join_1",
+            RoomCode = "notif_room",
+            PlayerName = "FortniteGod99",
+            MatchChests = 2,
+            SentUtc = DateTime.UtcNow
+        };
+
+        var method = typeof(PartyHub).GetMethod("ProcessIncomingJson", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+        method.Invoke(hub, new object[] { JsonSerializer.Serialize(mate) });
+
+        Assert.Equal("FortniteGod99", notifiedTeammate);
+        var alert = hub.DequeueNotification();
+        Assert.NotNull(alert);
+        Assert.Contains("FortniteGod99", alert);
+    }
 }

@@ -20,7 +20,9 @@ public static class NativeOverlay
     private static volatile bool _locked = false;
     private static volatile bool _gameIsForeground = true;
     private static int _x = 24, _y = 140;
-    private static int _width = 410, _height = 68;
+    private static int _width = 430, _height = 68;
+    private static string? _teammateAlert;
+    private static DateTime _teammateAlertUntil = DateTime.MinValue;
 
     private const int WM_TIMER = 0x0113;
     private const int WM_HOTKEY = 0x0312;
@@ -42,6 +44,13 @@ public static class NativeOverlay
         _y = config.OverlayY;
         _locked = config.OverlayLocked;
         _visible = config.OverlayEnabled;
+
+        _partyHub.OnTeammateJoined = name =>
+        {
+            _teammateAlert = $"+ {name} подключился к пати";
+            _teammateAlertUntil = DateTime.UtcNow.AddSeconds(4);
+            NotifyUpdate();
+        };
 
         if (_thread != null) return;
 
@@ -272,7 +281,8 @@ public static class NativeOverlay
         if (hWnd == IntPtr.Zero || !_visible || (_config.OverlayOnlyInGame && !_gameIsForeground)) return;
 
         var peers = _partyHub?.GetConnectedPeers() ?? (IReadOnlyList<TeammatePeer>)Array.Empty<TeammatePeer>();
-        int targetHeight = 64 + (peers.Count > 0 ? (peers.Count * 22 + 6) : 0);
+        bool showAlert = !string.IsNullOrEmpty(_teammateAlert) && DateTime.UtcNow < _teammateAlertUntil;
+        int targetHeight = 64 + (peers.Count > 0 ? (peers.Count * 22 + 6) : 0) + (showAlert ? 22 : 0);
         _height = targetHeight;
 
         using var bmp = new Bitmap(_width, _height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
@@ -298,21 +308,28 @@ public static class NativeOverlay
             using var fontHeader = new Font("Segoe UI", 9, FontStyle.Bold);
             using var fontBold = new Font("Segoe UI", 10, FontStyle.Bold);
             using var fontRow = new Font("Segoe UI", 10, FontStyle.Regular);
+            using var fontSmall = new Font("Segoe UI", 8, FontStyle.Bold);
 
             using var whiteBrush = new SolidBrush(Color.FromArgb(textAlpha, 245, 245, 247));
             using var goldBrush = new SolidBrush(Color.FromArgb(textAlpha, 229, 169, 60));
+            using var greenBrush = new SolidBrush(Color.FromArgb(textAlpha, 74, 222, 128));
             using var muteBrush = new SolidBrush(Color.FromArgb((int)(textAlpha * 0.65), 150, 155, 170));
             using var divPen = new Pen(Color.FromArgb((int)(Math.Max(bgAlpha, textAlpha) * 0.25), 255, 255, 255), 1f);
 
-            // Columns layout: Player, Last, All, Session
+            // Columns layout: Player, Match/Last, All, Session
             const int colPlayer = 16;
-            const int colLast = 180;
-            const int colAll = 255;
-            const int colSession = 335;
+            const int colMatch = 165;
+            const int colAll = 280;
+            const int colSession = 355;
+
+            bool inMatch = _engine?.MatchStatus == "InMatch";
+            int myCur = _engine?.CurrentMatchChests ?? 0;
+            int mySec = _engine?.CurrentMatchSeconds ?? 0;
+            double myCpm = mySec >= 15 ? Math.Round((double)myCur / (mySec / 60.0), 1) : 0.0;
 
             // Header Row
             g.DrawString("Player", fontHeader, muteBrush, colPlayer, 10);
-            g.DrawString("Last", fontHeader, muteBrush, colLast, 10);
+            g.DrawString(inMatch ? "Match (CPM)" : "Last", fontHeader, inMatch ? goldBrush : muteBrush, colMatch, 10);
             g.DrawString("All", fontHeader, muteBrush, colAll, 10);
             g.DrawString("Session", fontHeader, muteBrush, colSession, 10);
 
@@ -326,7 +343,18 @@ public static class NativeOverlay
 
             int curY = 34;
             g.DrawString(myName, fontBold, goldBrush, colPlayer, curY);
-            g.DrawString(myLast.ToString(), fontBold, goldBrush, colLast, curY);
+
+            if (inMatch)
+            {
+                var matchText = $"{myCur} ({myCpm:0.0}/м)";
+                var paceBrush = myCpm >= 1.5 ? greenBrush : (myCpm >= 0.8 ? goldBrush : muteBrush);
+                g.DrawString(matchText, fontBold, paceBrush, colMatch, curY);
+            }
+            else
+            {
+                g.DrawString(myLast.ToString(), fontBold, goldBrush, colMatch, curY);
+            }
+
             g.DrawString(myAll.ToString("N0"), fontBold, whiteBrush, colAll, curY);
             g.DrawString(mySession.ToString(), fontBold, goldBrush, colSession, curY);
 
@@ -339,13 +367,35 @@ public static class NativeOverlay
 
                 foreach (var p in peers)
                 {
-                    int pLast = p.LastMatchChests > 0 ? p.LastMatchChests : p.MatchChests;
                     g.DrawString(p.PlayerName, fontRow, whiteBrush, colPlayer, curY);
-                    g.DrawString(pLast.ToString(), fontRow, goldBrush, colLast, curY);
+
+                    if (inMatch && p.MatchChests > 0)
+                    {
+                        double pCpm = p.MatchSeconds >= 15 ? Math.Round((double)p.MatchChests / (p.MatchSeconds / 60.0), 1) : 0.0;
+                        var pText = $"{p.MatchChests} ({pCpm:0.0}/м)";
+                        var pBrush = pCpm >= 1.5 ? greenBrush : (pCpm >= 0.8 ? goldBrush : muteBrush);
+                        g.DrawString(pText, fontRow, pBrush, colMatch, curY);
+                    }
+                    else
+                    {
+                        int pLast = p.LastMatchChests > 0 ? p.LastMatchChests : p.MatchChests;
+                        g.DrawString(pLast.ToString(), fontRow, goldBrush, colMatch, curY);
+                    }
+
                     g.DrawString(p.TotalChests > 0 ? p.TotalChests.ToString("N0") : "-", fontRow, whiteBrush, colAll, curY);
                     g.DrawString(p.SessionChests.ToString(), fontRow, goldBrush, colSession, curY);
                     curY += 22;
                 }
+            }
+
+            // Teammate Join notification banner
+            if (showAlert)
+            {
+                curY += 22;
+                g.DrawLine(divPen, 16, curY, _width - 16, curY);
+                curY += 4;
+                using var alertBrush = new SolidBrush(Color.FromArgb(textAlpha, 74, 222, 128));
+                g.DrawString(_teammateAlert, fontSmall, alertBrush, colPlayer, curY);
             }
         }
 

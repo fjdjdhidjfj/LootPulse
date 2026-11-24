@@ -110,8 +110,30 @@ public sealed class GuiServer
                     duration = m.DurationSeconds,
                     chests = m.ChestsOpened + m.ChestsDestroyed,
                     squadChests = m.SquadChests,
-                    squad = m.SquadRoster
+                    squad = m.SquadRoster,
+                    mainLocation = m.MainLocation,
+                    locations = m.Locations
                 }).ToList();
+
+                var allLocs = new Dictionary<string, (int chests, int matches)>();
+                foreach (var m in _engine.Matches)
+                {
+                    foreach (var (loc, cnt) in m.Locations)
+                    {
+                        if (!allLocs.TryGetValue(loc, out var stat))
+                            allLocs[loc] = (cnt, 1);
+                        else
+                            allLocs[loc] = (stat.chests + cnt, stat.matches + 1);
+                    }
+                }
+                var topLocations = allLocs.OrderByDescending(kv => kv.Value.chests)
+                    .Select(kv => new { name = kv.Key, chests = kv.Value.chests, matches = kv.Value.matches })
+                    .ToList();
+
+                int curSec = _engine.CurrentMatchSeconds;
+                int curChests = _engine.CurrentMatchChests;
+                double currentMatchCpm = curSec >= 15 ? Math.Round((double)curChests / (curSec / 60.0), 1) : 0.0;
+                var notification = _partyHub.DequeueNotification();
 
                 var state = new
                 {
@@ -119,7 +141,9 @@ public sealed class GuiServer
                     sessionChests = _engine.SessionChests,
                     lastMatchChests = _engine.LastMatchChests,
                     currentMatchChests = _engine.CurrentMatchChests,
+                    currentMatchCpm,
                     matchSeconds = _engine.CurrentMatchSeconds,
+                    notification,
                     roomCode = _config.RoomCode,
                     profile = _config.Profile,
                     demosFolder = _config.ReplayFolder,
@@ -137,7 +161,8 @@ public sealed class GuiServer
                         changelog = _latestUpdate.Changelog
                     } : null,
                     peers,
-                    matches
+                    matches,
+                    topLocations
                 };
 
                 var json = JsonSerializer.Serialize(state);

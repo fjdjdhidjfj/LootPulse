@@ -37,8 +37,12 @@ public sealed class PartyHub
     private string? _lastStateKey;
     private DateTime _lastHttpSentUtc = DateTime.MinValue;
     private int _httpSending;
+    private readonly ConcurrentQueue<string> _notifications = new();
 
     public Action? OnRosterChanged { get; set; }
+    public Action<string>? OnTeammateJoined { get; set; }
+
+    public string? DequeueNotification() => _notifications.TryDequeue(out var n) ? n : null;
 
     public PartyHub(Config config)
     {
@@ -304,6 +308,7 @@ public sealed class PartyHub
                 ? packet.PlayerName.Trim().ToLowerInvariant()
                 : (!string.IsNullOrEmpty(packet.ClientId) ? packet.ClientId : "unknown");
 
+            bool isNew = !_peers.TryGetValue(peerKey, out var existing) || !existing.IsOnline;
             var peer = _peers.GetOrAdd(peerKey, _ => new TeammatePeer { ClientId = packet.ClientId, PlayerName = packet.PlayerName });
             peer.ClientId = packet.ClientId;
             peer.PlayerName = packet.PlayerName;
@@ -314,6 +319,12 @@ public sealed class PartyHub
             peer.TotalChests = packet.TotalChests;
             peer.MatchSeconds = packet.MatchSeconds;
             peer.LastSeenUtc = DateTime.UtcNow;
+
+            if (isNew && !string.IsNullOrWhiteSpace(packet.PlayerName))
+            {
+                _notifications.Enqueue($"{packet.PlayerName} подключился к пати");
+                OnTeammateJoined?.Invoke(packet.PlayerName);
+            }
 
             OnRosterChanged?.Invoke();
         }

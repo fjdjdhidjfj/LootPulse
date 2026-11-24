@@ -29,6 +29,7 @@ public sealed class ChestEvent
     public float TimeSeconds { get; set; }
     public bool IsDestroyed { get; set; }
     public string Label { get; set; } = "Chest";
+    public string Location { get; set; } = "Окрестности";
 }
 
 public sealed class MatchSummary
@@ -42,6 +43,8 @@ public sealed class MatchSummary
     public int SquadChests { get; set; }
     public List<string> SquadRoster { get; set; } = new();
     public List<ChestEvent> Events { get; set; } = new();
+    public Dictionary<string, int> Locations { get; set; } = new();
+    public string MainLocation => Locations.Count > 0 ? Locations.MaxBy(kv => kv.Value).Key : "Окрестности";
     public double ChestsPerMinute => DurationSeconds > 0 ? Math.Round((double)ChestsOpened / (DurationSeconds / 60.0), 2) : 0;
 }
 
