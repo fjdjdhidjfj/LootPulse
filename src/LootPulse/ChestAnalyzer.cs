@@ -118,7 +118,6 @@ public sealed class ChestAnalyzer : FortniteReplayReader.ReplayReader
         int opened = 0;
         int destroyed = 0;
         var events = new List<ChestEvent>();
-        var locations = new Dictionary<string, int>();
 
         foreach (var s in _searches.OrderBy(s => s.Time))
         {
@@ -126,7 +125,6 @@ public sealed class ChestAnalyzer : FortniteReplayReader.ReplayReader
             {
                 var pPt = PositionOf(p, s.Time);
                 var loc = pPt != null ? PoiResolver.Resolve(pPt.Value.X, pPt.Value.Y) : "Окрестности";
-                locations[loc] = locations.GetValueOrDefault(loc, 0) + 1;
 
                 if (s.Destroyed)
                 {
@@ -155,8 +153,7 @@ public sealed class ChestAnalyzer : FortniteReplayReader.ReplayReader
             DurationSeconds = Math.Max(0, duration),
             ChestsOpened = opened,
             ChestsDestroyed = destroyed,
-            Events = events,
-            Locations = locations
+            Events = events
         };
     }
 

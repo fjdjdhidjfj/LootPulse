@@ -282,7 +282,7 @@ public static class NativeOverlay
 
         var peers = _partyHub?.GetConnectedPeers() ?? (IReadOnlyList<TeammatePeer>)Array.Empty<TeammatePeer>();
         bool showAlert = !string.IsNullOrEmpty(_teammateAlert) && DateTime.UtcNow < _teammateAlertUntil;
-        int targetHeight = 64 + (peers.Count > 0 ? (peers.Count * 22 + 6) : 0) + (showAlert ? 22 : 0);
+        int targetHeight = 64 + (peers.Count > 0 ? (peers.Count * 22 + 6) : 0) + (showAlert ? 24 : 0);
         _height = targetHeight;
 
         using var bmp = new Bitmap(_width, _height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
@@ -391,7 +391,7 @@ public static class NativeOverlay
             // Teammate Join notification banner
             if (showAlert)
             {
-                curY += 22;
+                if (peers.Count == 0) curY += 24;
                 g.DrawLine(divPen, 16, curY, _width - 16, curY);
                 curY += 4;
                 using var alertBrush = new SolidBrush(Color.FromArgb(textAlpha, 74, 222, 128));

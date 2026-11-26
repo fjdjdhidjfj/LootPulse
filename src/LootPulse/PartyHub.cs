@@ -53,6 +53,8 @@ public sealed class PartyHub
     {
         var codeChanged = !string.Equals(_config.RoomCode, config.RoomCode, StringComparison.OrdinalIgnoreCase);
         _config = config;
+        var myName = (!string.IsNullOrWhiteSpace(_config.Profile) ? _config.Profile : Environment.MachineName).Trim();
+        _peers.TryRemove(myName.ToLowerInvariant(), out _);
         if (codeChanged)
         {
             _peers.Clear();
@@ -293,12 +295,11 @@ public sealed class PartyHub
             // Strict Room check
             if (!string.Equals(packet.RoomCode, _config.RoomCode?.Trim(), StringComparison.OrdinalIgnoreCase)) return;
 
-            // Reject self-echo by unique ClientId
+            // Reject self-echo by unique ClientId or matching local PlayerName (e.g. stale packet after restart)
             if (string.Equals(packet.ClientId, LocalClientId, StringComparison.OrdinalIgnoreCase)) return;
 
-            // Reject self-echo if same machine and profile
-            var myName = !string.IsNullOrWhiteSpace(_config.Profile) ? _config.Profile : Environment.MachineName;
-            if (string.Equals(packet.PlayerName, myName, StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(packet.ClientId)) return;
+            var myName = (!string.IsNullOrWhiteSpace(_config.Profile) ? _config.Profile : Environment.MachineName).Trim();
+            if (string.Equals(packet.PlayerName?.Trim(), myName, StringComparison.OrdinalIgnoreCase)) return;
 
             // Timestamp sanity (10 minutes tolerance for desynced PC clocks)
             if (Math.Abs((DateTime.UtcNow - packet.SentUtc).TotalMinutes) > 10) return;

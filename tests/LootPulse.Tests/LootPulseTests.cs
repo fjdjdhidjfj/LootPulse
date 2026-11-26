@@ -191,6 +191,30 @@ public class PartyHubTests
     }
 
     [Fact]
+    public void PartyHub_RejectsStaleSelfPacket_WithDifferentClientId()
+    {
+        var config = new Config { RoomCode = "my_squad", Profile = "piska554" };
+        var hub = new PartyHub(config);
+
+        var staleSelfPacket = new PartyPacket
+        {
+            ClientId = "old_session_id",
+            RoomCode = "my_squad",
+            PlayerName = "piska554",
+            MatchChests = 25,
+            SessionChests = 425,
+            SentUtc = DateTime.UtcNow
+        };
+
+        var method = typeof(PartyHub).GetMethod("ProcessIncomingJson", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        Assert.NotNull(method);
+        method.Invoke(hub, new object[] { JsonSerializer.Serialize(staleSelfPacket) });
+
+        Assert.Empty(hub.GetConnectedPeers());
+        Assert.Null(hub.DequeueNotification());
+    }
+
+    [Fact]
     public void PartyHub_AcceptsMatchingRoomPeers_AndAggregatesSquadChests()
     {
         var config = new Config { RoomCode = "victory_clan", Profile = "Me" };
@@ -558,43 +582,65 @@ public class ChestAnalyzerTests
     }
 
     [Fact]
+    public void ChestClassifier_ClassifiesAllChestTypesCorrectly()
+    {
+        Assert.Equal("normal", ChestClassifier.Classify("Tiered_Chest_Athena_C_UAID_123"));
+        Assert.Equal("normal", ChestClassifier.Classify("AlwaysSpawn_NormalChest_C"));
+        Assert.Equal("rare", ChestClassifier.Classify("AlwaysSpawn_RareChest_C_UAID_456"));
+        Assert.Equal("rare", ChestClassifier.Classify("Tiered_Chest_6_Parent"));
+        Assert.Equal("weapon", ChestClassifier.Classify("B_TieredChest_Relics_C"));
+        Assert.Equal("weapon", ChestClassifier.Classify("B_Delilah_TieredChest_Relics_Variant2_C"));
+        Assert.Equal("buried", ChestClassifier.Classify("B_Athena_BuriedChest_Chest_C"));
+        Assert.Equal("ghost", ChestClassifier.Classify("GHOST_Chest_Athena_C"));
+        Assert.Equal("ghost", ChestClassifier.Classify("B_SpiritChest_Athena_C"));
+    }
+
+    [Fact]
     public void PoiResolver_ResolvesKnownLocationsCorrectly()
     {
-        // Salty Springs near (-25700, -25200)
-        Assert.Equal("Salty Springs", PoiResolver.Resolve(-25000, -25000));
-        // The Agency near (0, -3500)
-        Assert.Equal("The Agency", PoiResolver.Resolve(100, -3600));
-        // Retail Row near (63900, 27600)
-        Assert.Equal("Retail Row", PoiResolver.Resolve(64000, 27000));
-        // Far off into the ocean or outskirts
+        Assert.Equal("Arlong Park", PoiResolver.Resolve(-51700, 16100));
+        Assert.Equal("The Chest", PoiResolver.Resolve(-32400, -21400));
+        Assert.Equal("The $.$. Rocky", PoiResolver.Resolve(66500, 30300));
+        Assert.Equal("Baratie", PoiResolver.Resolve(65770, 69660));
         Assert.Equal("Окрестности", PoiResolver.Resolve(500000, -500000));
     }
 
     [Fact]
-    public void MatchSummary_LocationsAndMainLocation_CalculatesCorrectly()
+    public void MatchSummary_ChestBreakdown_AggregatesEventsCorrectly()
     {
         var match = new MatchSummary();
-        Assert.Equal("Окрестности", match.MainLocation);
+        Assert.Empty(match.ChestBreakdown);
 
-        match.Locations["Retail Row"] = 5;
-        match.Locations["Salty Springs"] = 9;
-        match.Locations["Pleasant Park"] = 2;
+        match.Events.Add(new ChestEvent { Label = "Tiered_Chest_Athena_C" });
+        match.Events.Add(new ChestEvent { Label = "AlwaysSpawn_NormalChest_C" });
+        match.Events.Add(new ChestEvent { Label = "AlwaysSpawn_RareChest_C" });
+        match.Events.Add(new ChestEvent { Label = "B_TieredChest_Relics_C" });
+        match.Events.Add(new ChestEvent { Label = "B_Athena_BuriedChest_Chest_C" });
 
-        Assert.Equal("Salty Springs", match.MainLocation);
-        Assert.Equal(3, match.Locations.Count);
-        Assert.Equal(9, match.Locations["Salty Springs"]);
+        var breakdown = match.ChestBreakdown;
+        Assert.Equal(2, breakdown["normal"]);
+        Assert.Equal(1, breakdown["rare"]);
+        Assert.Equal(1, breakdown["weapon"]);
+        Assert.Equal(1, breakdown["buried"]);
     }
 
     [Fact]
-    public void GuiPage_ContainsLocationAndPaceElements()
+    public void GuiPage_ContainsChestBreakdownAndPaceElements()
     {
-        var html = GuiPage.Render("token_loc_check");
+        var html = GuiPage.Render("token_chest_check");
 
-        // POI elements
-        Assert.Contains("Популярные локации (Drop Spots)", html);
-        Assert.Contains("id=\"topLocationsCard\"", html);
-        Assert.Contains("id=\"topLocationsList\"", html);
-        Assert.Contains("Локация", html);
+        // Chest breakdown elements
+        Assert.Contains("Разбивка по типам сундуков", html);
+        Assert.Contains("id=\"chestTotalsCard\"", html);
+        Assert.Contains("id=\"chestTotalsList\"", html);
+        Assert.Contains("Добыча по типам", html);
+        Assert.Contains("renderChestBadges", html);
+        Assert.Contains("id=\"matchModal\"", html);
+        Assert.Contains("openMatchModal", html);
+
+        // Locations completely removed
+        Assert.DoesNotContain("Популярные локации", html);
+        Assert.DoesNotContain("topLocationsCard", html);
 
         // CPM / Pace elements
         Assert.Contains("id=\"currentMatchCpm\"", html);

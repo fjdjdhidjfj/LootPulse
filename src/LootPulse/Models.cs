@@ -43,8 +43,13 @@ public sealed class MatchSummary
     public int SquadChests { get; set; }
     public List<string> SquadRoster { get; set; } = new();
     public List<ChestEvent> Events { get; set; } = new();
-    public Dictionary<string, int> Locations { get; set; } = new();
-    public string MainLocation => Locations.Count > 0 ? Locations.MaxBy(kv => kv.Value).Key : "Окрестности";
+    [JsonIgnore]
+    public Dictionary<string, int> ChestBreakdown => ChestClassifier.Summarize(Events);
+    [JsonIgnore]
+    public Dictionary<string, int> Locations => Events
+        .GroupBy(e => string.IsNullOrWhiteSpace(e.Location) ? "Окрестности" : e.Location)
+        .OrderByDescending(g => g.Count())
+        .ToDictionary(g => g.Key, g => g.Count());
     public double ChestsPerMinute => DurationSeconds > 0 ? Math.Round((double)ChestsOpened / (DurationSeconds / 60.0), 2) : 0;
 }
 

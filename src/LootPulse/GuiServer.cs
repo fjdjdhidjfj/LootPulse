@@ -108,26 +108,36 @@ public sealed class GuiServer
                     dateIso = m.DateUtc.ToLocalTime().ToString("yyyy-MM-dd"),
                     timestamp = new DateTimeOffset(m.DateUtc).ToUnixTimeMilliseconds(),
                     duration = m.DurationSeconds,
+                    opened = m.ChestsOpened,
+                    destroyed = m.ChestsDestroyed,
                     chests = m.ChestsOpened + m.ChestsDestroyed,
                     squadChests = m.SquadChests,
                     squad = m.SquadRoster,
-                    mainLocation = m.MainLocation,
-                    locations = m.Locations
+                    chestBreakdown = m.ChestBreakdown,
+                    locations = m.Locations,
+                    events = m.Events.Select(e => new
+                    {
+                        t = (int)Math.Round(e.TimeSeconds),
+                        d = e.IsDestroyed,
+                        type = ChestClassifier.Classify(e.Label),
+                        loc = string.IsNullOrWhiteSpace(e.Location) ? "Окрестности" : e.Location
+                    }).ToList()
                 }).ToList();
 
-                var allLocs = new Dictionary<string, (int chests, int matches)>();
+                var allChestTypes = new Dictionary<string, (int count, int matches)>();
                 foreach (var m in _engine.Matches)
                 {
-                    foreach (var (loc, cnt) in m.Locations)
+                    foreach (var (type, cnt) in m.ChestBreakdown)
                     {
-                        if (!allLocs.TryGetValue(loc, out var stat))
-                            allLocs[loc] = (cnt, 1);
+                        if (!allChestTypes.TryGetValue(type, out var stat))
+                            allChestTypes[type] = (cnt, 1);
                         else
-                            allLocs[loc] = (stat.chests + cnt, stat.matches + 1);
+                            allChestTypes[type] = (stat.count + cnt, stat.matches + 1);
                     }
                 }
-                var topLocations = allLocs.OrderByDescending(kv => kv.Value.chests)
-                    .Select(kv => new { name = kv.Key, chests = kv.Value.chests, matches = kv.Value.matches })
+                var chestTotals = ChestClassifier.Order
+                    .Where(t => allChestTypes.ContainsKey(t))
+                    .Select(t => new { type = t, count = allChestTypes[t].count, matches = allChestTypes[t].matches })
                     .ToList();
 
                 int curSec = _engine.CurrentMatchSeconds;
@@ -162,7 +172,7 @@ public sealed class GuiServer
                     } : null,
                     peers,
                     matches,
-                    topLocations
+                    chestTotals
                 };
 
                 var json = JsonSerializer.Serialize(state);

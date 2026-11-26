@@ -6,45 +6,44 @@ public static class PoiResolver
 {
     private readonly record struct Poi(string Name, float X, float Y, float Radius);
 
-    private static readonly Poi[] KnownPois =
+    private static readonly Poi[] Pois =
     [
-        new("The Agency", 0f, -5000f, 25000f),
-        new("Salty Springs", -26000f, -25000f, 20000f),
-        new("Pleasant Park", -25000f, -72000f, 22000f),
-        new("Sweaty Sands", -70000f, -52000f, 22000f),
-        new("Holly Hedges", -75000f, -10000f, 20000f),
-        new("Weeping Woods", -22000f, -44000f, 24000f),
-        new("Slurpy Swamp", -40000f, 18000f, 24000f),
-        new("Misty Meadows", 15000f, 75000f, 22000f),
-        new("Lazy Lake", 20000f, 30000f, 22000f),
-        new("Retail Row", 64000f, 28000f, 22000f),
-        new("Dirty Docks", 85000f, -25000f, 24000f),
-        new("Frenzy Farm", 25000f, -22000f, 22000f),
-        new("Steamy Stacks", 68000f, -74000f, 22000f),
-        new("Craggy Cliffs", 15000f, -86000f, 20000f),
-        new("Catty Corner", 52000f, 66000f, 18000f),
-        new("Risky Reels", 12000f, -15000f, 15000f),
-        new("Coral Castle", -75000f, -85000f, 22000f),
-        new("Doom's Courtyard", -25000f, -68000f, 22000f)
+        // Crossbones Isle (Treasure Hunters / One Piece) — named POIs
+        new("Arlong Park", -51707f, 16134f, 20000f),
+        new("The Chest", -32433f, -21391f, 20000f),
+        new("Rubber Resort", -24028f, -45216f, 20000f),
+        new("Buggy's Beachhead", 8270f, -25088f, 20000f),
+        new("Lantern Landing", -11770f, 4994f, 18000f),
+        new("Windmill Village", -33592f, 63719f, 20000f),
+        new("Loguetown", 1846f, 55330f, 20000f),
+        new("Plunder Port", 26307f, 89235f, 20000f),
+        new("Busy Bay", 62269f, 70367f, 18000f),
+        new("The $.$. Rocky", 66471f, 30308f, 20000f),
+        new("Cursed Cavern", 31432f, 19822f, 18000f),
+        // Landmarks
+        new("Baratie", 65771f, 69662f, 10000f),
+        new("Nami's Tangerine Grove", -40304f, 82390f, 12000f),
+        new("Henry", 34307f, 73225f, 12000f),
+        new("Giant's Battlefield", -3614f, 34262f, 14000f),
+        new("The Salty Skull", 34752f, 31434f, 12000f)
     ];
 
     public static string Resolve(float x, float y)
     {
-        string best = "Окрестности";
+        string bestName = "Окрестности";
         float bestDistSq = float.MaxValue;
 
-        foreach (var p in KnownPois)
+        foreach (var p in Pois)
         {
-            var dx = x - p.X;
-            var dy = y - p.Y;
-            var dSq = dx * dx + dy * dy;
+            float dx = x - p.X;
+            float dy = y - p.Y;
+            float dSq = dx * dx + dy * dy;
             if (dSq <= p.Radius * p.Radius && dSq < bestDistSq)
             {
                 bestDistSq = dSq;
-                best = p.Name;
+                bestName = p.Name;
             }
         }
-
-        return best;
+        return bestName;
     }
 }
